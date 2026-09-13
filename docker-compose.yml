@@ -1,0 +1,11 @@
+services:
+  bandlist:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      # Bind-mounts the SQLite file to the host so data survives
+      # container rebuilds/removals. Swap for a named volume if you'd
+      # rather Docker manage the storage location.
+      - ./data:/app/data
+    restart: unless-stopped
