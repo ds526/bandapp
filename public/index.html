@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BandList</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Work+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">setlist</span><span class="brand-tail">.io</span>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-view="rank">Rankings</button>
+      <button class="tab" data-view="add">Submit a song</button>
+      <button class="tab" data-view="learned">Learned</button>
+      <button class="tab" data-view="members">Members</button>
+    </nav>
+    <div class="whoami">
+      <label for="member-select">Voting as</label>
+      <select id="member-select"></select>
+    </div>
+  </header>
+
+  <main id="app">
+
+    <!-- RANKINGS VIEW -->
+    <section id="view-rank" class="view active">
+      <div class="view-head">
+        <h1>The queue</h1>
+        <p class="sub">Ranked by average vote. Highest score learns next.</p>
+      </div>
+      <div class="status-filter" id="status-filter">
+        <button class="chip active" data-status="proposed">Proposed</button>
+        <button class="chip" data-status="learning">Learning</button>
+        <button class="chip" data-status="all">All active</button>
+      </div>
+      <div id="song-list" class="song-list"></div>
+    </section>
+
+    <!-- ADD SONG VIEW -->
+    <section id="view-add" class="view">
+      <div class="view-head">
+        <h1>Submit a song</h1>
+        <p class="sub">Throw it in the pool. The band votes, the numbers decide.</p>
+      </div>
+      <form id="add-song-form" class="form-card">
+        <div class="field">
+          <label for="f-title">Title *</label>
+          <input id="f-title" name="title" type="text" placeholder="Song title" required />
+        </div>
+        <div class="field">
+          <label for="f-artist">Artist</label>
+          <input id="f-artist" name="artist" type="text" placeholder="Original artist" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="f-key">Key</label>
+            <input id="f-key" name="song_key" type="text" placeholder="e.g. G, A minor" />
+          </div>
+          <div class="field">
+            <label for="f-time">Time signature</label>
+            <input id="f-time" name="time_signature" type="text" placeholder="e.g. 4/4" />
+          </div>
+          <div class="field">
+            <label for="f-tempo">Tempo (BPM)</label>
+            <input id="f-tempo" name="tempo_bpm" type="number" min="1" max="400" placeholder="120" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="f-notes">Notes</label>
+          <textarea id="f-notes" name="notes" rows="3" placeholder="Arrangement ideas, reference version, who's singing lead..."></textarea>
+        </div>
+        <button type="submit" class="btn-primary">Submit song</button>
+        <p class="form-msg" id="add-song-msg"></p>
+      </form>
+    </section>
+
+    <!-- LEARNED VIEW -->
+    <section id="view-learned" class="view">
+      <div class="view-head">
+        <h1>Learned</h1>
+        <p class="sub">The archive. Everything the band has actually nailed.</p>
+      </div>
+      <div id="learned-list" class="song-list"></div>
+    </section>
+
+    <!-- MEMBERS VIEW -->
+    <section id="view-members" class="view">
+      <div class="view-head">
+        <h1>Members</h1>
+        <p class="sub">Who's in the room, who's got a vote.</p>
+      </div>
+      <form id="add-member-form" class="form-card form-card-inline">
+        <div class="field">
+          <label for="f-member-name">Add a member</label>
+          <input id="f-member-name" name="name" type="text" placeholder="Full name" required />
+        </div>
+        <button type="submit" class="btn-primary">Add</button>
+      </form>
+      <ul id="member-list" class="member-list"></ul>
+    </section>
+
+  </main>
+
+  <!-- Song detail / voting modal -->
+  <div id="modal-backdrop" class="modal-backdrop">
+    <div class="modal" id="song-modal"></div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
