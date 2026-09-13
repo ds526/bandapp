@@ -1,4 +1,3 @@
- ---- deps stage: compile native deps (better-sqlite3) ----
 FROM node:20-slim AS deps
 WORKDIR /app
 
