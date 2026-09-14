@@ -16,4 +16,13 @@ db.pragma('foreign_keys = ON');
 const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
 db.exec(schema);
 
+// --- lightweight migrations ---
+// schema.sql only creates NEW tables (CREATE TABLE IF NOT EXISTS is a no-op
+// on a table that already exists), so a column added to an existing table
+// needs its own migration step like this one.
+const memberColumns = db.prepare("PRAGMA table_info(members)").all().map((c) => c.name);
+if (!memberColumns.includes('password_hash')) {
+  db.exec('ALTER TABLE members ADD COLUMN password_hash TEXT');
+}
+
 module.exports = db;

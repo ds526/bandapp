@@ -1,7 +1,9 @@
 const express = require('express');
 const db = require('../db');
+const requireAuth = require('../middleware/requireAuth');
 
 const router = express.Router();
+router.use(requireAuth);
 
 const EDITABLE_FIELDS = [
   'title', 'artist', 'song_key', 'time_signature',
@@ -55,9 +57,11 @@ router.get('/:id', (req, res) => {
   res.json({ ...song, votes });
 });
 
-// POST /api/songs - submit a new song for consideration
+// POST /api/songs - submit a new song for consideration.
+// submitted_by always comes from the logged-in session, never the request
+// body - otherwise anyone could submit a song under someone else's name.
 router.post('/', (req, res) => {
-  const { title, artist, song_key, time_signature, tempo_bpm, notes, submitted_by } = req.body;
+  const { title, artist, song_key, time_signature, tempo_bpm, notes } = req.body;
 
   if (!title || !title.trim()) {
     return res.status(400).json({ error: 'title is required' });
@@ -73,7 +77,7 @@ router.post('/', (req, res) => {
     time_signature || null,
     tempo_bpm || null,
     notes || null,
-    submitted_by || null,
+    req.member.id,
   );
 
   const song = db.prepare('SELECT * FROM songs WHERE id = ?').get(result.lastInsertRowid);

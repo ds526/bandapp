@@ -53,6 +53,23 @@ npm run dev
 4. The **Rankings** tab sorts by average score — highest first, ties broken
    by vote count, then by submission date.
 
+## Accounts and login
+
+Each member has a real password now - no more picking a name from a
+dropdown and voting as whoever. Sessions are opaque tokens stored server-
+side in a `sessions` table and referenced by an `httpOnly` cookie, so
+there's nothing for the client to forge. Every API route except
+`/api/auth/*` requires a valid session, and vote/song attribution always
+comes from that session, never from anything the client sends - so one
+member genuinely cannot vote as, or overwrite, another.
+
+**If you already had band members set up from before this change:** those
+names exist but have no password yet. Have each person go to **Sign up**
+and enter their exact existing name plus a new password - this "claims"
+the existing account (and any votes/songs already attached to it) rather
+than creating a duplicate. This only works once per name; after a password
+is set, that name has to log in normally.
+
 ## How the data model works
 
 - `songs.status` moves through `proposed → learning → learned` (or
@@ -69,20 +86,70 @@ npm run dev
 
 All endpoints are under `/api`. Bodies and responses are JSON.
 
+All routes below except `/api/auth/*` require a session cookie (see
+"Accounts and login" above) - an unauthenticated request gets a 401.
+
 | Method | Path | Purpose |
 |---|---|---|
+| POST | `/api/auth/signup` | Create an account, or claim an existing name that has no password yet. Body: `name`, `password` (min 6 chars). Sets the session cookie. |
+| POST | `/api/auth/login` | Log in. Body: `name`, `password`. Sets the session cookie. |
+| POST | `/api/auth/logout` | Clear the current session. |
+| GET | `/api/auth/me` | Who the current session cookie belongs to. 401 if not logged in. |
 | GET | `/api/songs?status=proposed` | List songs, ranked by avg vote. `status` optional. |
 | GET | `/api/songs/:id` | One song plus its individual votes. |
-| POST | `/api/songs` | Submit a song. Body: `title` (required), `artist`, `song_key`, `time_signature`, `tempo_bpm`, `notes`, `submitted_by`. |
+| POST | `/api/songs` | Submit a song. Body: `title` (required), `artist`, `song_key`, `time_signature`, `tempo_bpm`, `notes`. `submitted_by` is taken from your session, not the body. |
 | PATCH | `/api/songs/:id` | Edit metadata or change `status`. |
 | DELETE | `/api/songs/:id` | Remove a song. |
-| GET | `/api/members` | List band members. |
-| POST | `/api/members` | Add a member. Body: `name`. |
-| DELETE | `/api/members/:id` | Remove a member (their votes go too). |
-| POST | `/api/votes` | Cast/update a vote. Body: `song_id`, `member_id`, `score` (1–5). |
-| DELETE | `/api/votes/:id` | Retract a vote. |
+| GET | `/api/members` | List band members (names only). |
+| POST | `/api/votes` | Cast/update your own vote. Body: `song_id`, `score` (1–5). `member_id` is taken from your session. |
+| DELETE | `/api/votes/:id` | Retract your own vote (rejected if it isn't yours). |
+
+## Running it in a container
+
+```bash
+docker compose up --build
+```
+
+Then open http://localhost:3000. This builds the image, starts the
+container, and bind-mounts `./data` on your host to `/app/data` in the
+container so `bandlist.db` survives rebuilds. Stop with `Ctrl+C`, or
+`docker compose down` to remove the container (the `./data` folder stays).
+
+To run it without compose:
+```bash
+docker build -t bandlist .
+docker run -d --name bandlist -p 3000:3000 -v "$(pwd)/data:/app/data" bandlist
+```
+
+### Why the Dockerfile has two stages
+`better-sqlite3` is a native module - it compiles a small C++ binding
+against Node during `npm install`. The `deps` stage installs `python3`,
+`make`, and `g++` to build it, then the final image copies over just the
+built `node_modules` folder and drops those build tools entirely. That
+keeps the shipped image smaller and avoids a C++ toolchain sitting in your
+production container for no reason.
+
+### Notes
+- **Data persistence**: the container itself is disposable - all state
+  lives in the mounted `data/` folder. Back that up the same way as the
+  non-containerized setup (see the backup command further down).
+- **Logs**: `docker compose logs -f bandlist` (or `docker logs -f bandlist`
+  without compose).
+- **Rebuilding after a code change**: `docker compose up --build` again -
+  Docker will reuse cached layers where nothing changed.
+- **Env vars**: `PORT` and `DB_PATH` are both configurable via
+  `environment:` in `docker-compose.yml` if you need to change them.
 
 ## Deploying to AWS (EC2 free tier)
+
+You can deploy this either the "bare" way (Node + PM2 directly on the
+instance, described below) or by installing Docker on the instance and
+running `docker compose up -d` there instead of steps 3-4 below. Bare
+Node/PM2 is a bit lighter for a single `t3.micro`; Docker is nice if you
+want the exact same environment locally and in prod, or plan to run other
+containers alongside this one. Both sit behind the same Nginx config either
+way - the reverse proxy doesn't care whether port 3000 is a bare process or
+a container.
 
 This app is light enough to run comfortably on a `t2.micro`/`t3.micro`
 free-tier instance. No RDS, no load balancer — just Node behind Nginx.
@@ -144,7 +211,11 @@ ssh ubuntu@<ip> "cd ~/bandapp && npm install --production && pm2 restart bandlis
 ```
 
 ## Ideas for later (didn't build these to keep v1 lean)
-- Simple auth (a shared passphrase, or per-member login) if you ever expose
-  this beyond people you trust with the raw URL.
+- Removing a member account currently has to be done directly against the
+  SQLite file (`DELETE FROM members WHERE name = '...'`) - there's no admin
+  role or UI for it yet.
 - A "your votes" filter so a member can see what they haven't scored yet.
 - CSV export of the learned archive for setlist printing.
+- Password reset (there's no email/SMS in this app, so "forgot password"
+  currently means asking you to reset their `password_hash` directly in
+  the database).

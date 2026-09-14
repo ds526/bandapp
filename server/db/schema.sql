@@ -3,8 +3,18 @@
 CREATE TABLE IF NOT EXISTS members (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL UNIQUE,
+  password_hash TEXT,          -- null until the member signs up / claims their name
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS sessions (
+  token TEXT PRIMARY KEY,      -- opaque random token, doubles as the session id
+  member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_member ON sessions(member_id);
 
 CREATE TABLE IF NOT EXISTS songs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

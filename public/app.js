@@ -4,7 +4,7 @@
 
 const state = {
   members: [],
-  currentMemberId: null,
+  currentMember: null, // { id, name } from GET /api/auth/me - the source of truth for "who am I"
   statusFilter: 'proposed',
   activeSongId: null,
 };
@@ -16,6 +16,12 @@ async function api(path, options = {}) {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });
+  if (res.status === 401) {
+    // Session expired or was never there - drop back to the login screen
+    // rather than letting every caller handle this individually.
+    showAuthScreen();
+    throw new Error('please log in');
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `request failed: ${res.status}`);
@@ -29,10 +35,77 @@ const getSong = (id) => api(`/songs/${id}`);
 const createSong = (data) => api('/songs', { method: 'POST', body: JSON.stringify(data) });
 const patchSong = (id, data) => api(`/songs/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 const getMembers = () => api('/members');
-const createMember = (name) => api('/members', { method: 'POST', body: JSON.stringify({ name }) });
-const deleteMember = (id) => api(`/members/${id}`, { method: 'DELETE' });
-const castVote = (song_id, member_id, score) =>
-  api('/votes', { method: 'POST', body: JSON.stringify({ song_id, member_id, score }) });
+const castVote = (song_id, score) =>
+  api('/votes', { method: 'POST', body: JSON.stringify({ song_id, score }) });
+
+// ---------- Auth ----------
+
+async function fetchCurrentMember() {
+  try {
+    const res = await fetch('/api/auth/me');
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+function showAuthScreen() {
+  document.getElementById('auth-screen').classList.add('visible');
+  document.getElementById('app-shell').classList.remove('visible');
+  state.currentMember = null;
+}
+
+function showAppShell(member) {
+  state.currentMember = member;
+  document.getElementById('auth-screen').classList.remove('visible');
+  document.getElementById('app-shell').classList.add('visible');
+  document.getElementById('whoami-name').textContent = member.name;
+}
+
+let authMode = 'login';
+document.querySelectorAll('.auth-tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    authMode = tab.dataset.mode;
+    document.querySelectorAll('.auth-tab').forEach((t) => t.classList.toggle('active', t === tab));
+    document.getElementById('auth-submit').textContent = authMode === 'login' ? 'Log in' : 'Sign up';
+    document.getElementById('auth-password').autocomplete = authMode === 'login' ? 'current-password' : 'new-password';
+    document.getElementById('auth-hint').style.display = authMode === 'signup' ? 'block' : 'none';
+    document.getElementById('auth-msg').textContent = '';
+  });
+});
+
+document.getElementById('auth-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const msg = document.getElementById('auth-msg');
+  const name = form.name.value.trim();
+  const password = form.password.value;
+
+  try {
+    const res = await fetch(`/api/auth/${authMode}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, password }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'something went wrong');
+
+    form.reset();
+    msg.textContent = '';
+    await loadMembers();
+    showAppShell(body);
+    await renderRankings();
+  } catch (err) {
+    msg.textContent = err.message;
+    msg.className = 'form-msg err';
+  }
+});
+
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  showAuthScreen();
+});
 
 // ---------- Tabs ----------
 
@@ -50,35 +123,11 @@ function showView(name) {
   if (name === 'members') renderMembers();
 }
 
-// ---------- Member selector (top bar "voting as") ----------
+// ---------- Member roster (used by the Members tab, not for identity - see Auth) ----------
 
 async function loadMembers() {
   state.members = await getMembers();
-  const select = document.getElementById('member-select');
-  select.innerHTML = '';
-
-  if (state.members.length === 0) {
-    select.innerHTML = '<option value="">add a member first</option>';
-    state.currentMemberId = null;
-    return;
-  }
-
-  for (const m of state.members) {
-    const opt = document.createElement('option');
-    opt.value = m.id;
-    opt.textContent = m.name;
-    select.appendChild(opt);
-  }
-
-  if (!state.currentMemberId || !state.members.some((m) => m.id === state.currentMemberId)) {
-    state.currentMemberId = state.members[0].id;
-  }
-  select.value = state.currentMemberId;
 }
-
-document.getElementById('member-select').addEventListener('change', (e) => {
-  state.currentMemberId = Number(e.target.value);
-});
 
 // ---------- Rankings view ----------
 
@@ -190,7 +239,7 @@ document.getElementById('add-song-form').addEventListener('submit', async (e) =>
     time_signature: form.time_signature.value.trim() || null,
     tempo_bpm: form.tempo_bpm.value ? Number(form.tempo_bpm.value) : null,
     notes: form.notes.value.trim() || null,
-    submitted_by: state.currentMemberId || null,
+    // submitted_by is not sent - the server attributes it to the logged-in session
   };
 
   try {
@@ -212,41 +261,16 @@ async function renderMembers() {
   state.members = members;
 
   if (members.length === 0) {
-    list.innerHTML = '<div class="empty-state">no members yet. add the band above.</div>';
+    list.innerHTML = '<div class="empty-state">no one has signed up yet.</div>';
     return;
   }
 
   list.innerHTML = members.map((m) => `
     <li>
-      <span>${escapeHtml(m.name)}</span>
-      <button class="member-remove" data-id="${m.id}">remove</button>
+      <span>${escapeHtml(m.name)}${m.id === state.currentMember?.id ? ' <span style="color: var(--text-muted); font-size: 12px;">(you)</span>' : ''}</span>
     </li>
   `).join('');
-
-  list.querySelectorAll('.member-remove').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (!confirm('Remove this member? Their votes will be removed too.')) return;
-      await deleteMember(Number(btn.dataset.id));
-      await renderMembers();
-      await loadMembers();
-    });
-  });
 }
-
-document.getElementById('add-member-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const form = e.target;
-  const name = form.name.value.trim();
-  if (!name) return;
-  try {
-    await createMember(name);
-    form.reset();
-    await renderMembers();
-    await loadMembers();
-  } catch (err) {
-    alert(err.message);
-  }
-});
 
 // ---------- Song detail / voting modal ----------
 
@@ -270,7 +294,7 @@ async function openSongModal(id) {
 
 function renderModal(song) {
   const modal = document.getElementById('song-modal');
-  const myVote = song.votes.find((v) => v.member_id === state.currentMemberId);
+  const myVote = song.votes.find((v) => v.member_id === state.currentMember.id);
 
   const voteButtons = [1, 2, 3, 4, 5].map((n) => `
     <button class="vote-btn ${myVote && myVote.score === n ? 'selected' : ''}" data-score="${n}">${n}</button>
@@ -310,11 +334,7 @@ function renderModal(song) {
 
   modal.querySelectorAll('.vote-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
-      if (!state.currentMemberId) {
-        alert('Add and select a member before voting.');
-        return;
-      }
-      await castVote(song.id, state.currentMemberId, Number(btn.dataset.score));
+      await castVote(song.id, Number(btn.dataset.score));
       const updated = await getSong(song.id);
       renderModal(updated);
       renderRankings();
@@ -342,6 +362,12 @@ function escapeHtml(str) {
 // ---------- Init ----------
 
 (async function init() {
+  const member = await fetchCurrentMember();
+  if (!member) {
+    showAuthScreen();
+    return;
+  }
+  showAppShell(member);
   await loadMembers();
   await renderRankings();
 })();

@@ -9,23 +9,50 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-mark">setlist</span><span class="brand-tail">.io</span>
+  <!-- Shown until a valid session cookie is confirmed via GET /api/auth/me -->
+  <div id="auth-screen" class="auth-screen">
+    <div class="auth-card">
+      <div class="brand" style="margin-bottom: 24px;">
+        <span class="brand-mark">setlist</span><span class="brand-tail">.io</span>
+      </div>
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-mode="login" type="button">Log in</button>
+        <button class="auth-tab" data-mode="signup" type="button">Sign up</button>
+      </div>
+      <form id="auth-form" class="auth-form">
+        <div class="field">
+          <label for="auth-name">Name</label>
+          <input id="auth-name" name="name" type="text" placeholder="Your name" required autocomplete="username" />
+        </div>
+        <div class="field">
+          <label for="auth-password">Password</label>
+          <input id="auth-password" name="password" type="password" placeholder="At least 6 characters" required autocomplete="current-password" />
+        </div>
+        <button type="submit" class="btn-primary" id="auth-submit">Log in</button>
+        <p class="form-msg" id="auth-msg"></p>
+        <p class="auth-hint" id="auth-hint">Already in the band but never set a password? Sign up with your existing name to claim your account.</p>
+      </form>
     </div>
-    <nav class="tabs" id="tabs">
-      <button class="tab active" data-view="rank">Rankings</button>
-      <button class="tab" data-view="add">Submit a song</button>
-      <button class="tab" data-view="learned">Learned</button>
-      <button class="tab" data-view="members">Members</button>
-    </nav>
-    <div class="whoami">
-      <label for="member-select">Voting as</label>
-      <select id="member-select"></select>
-    </div>
-  </header>
+  </div>
 
-  <main id="app">
+  <div id="app-shell" class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">setlist</span><span class="brand-tail">.io</span>
+      </div>
+      <nav class="tabs" id="tabs">
+        <button class="tab active" data-view="rank">Rankings</button>
+        <button class="tab" data-view="add">Submit a song</button>
+        <button class="tab" data-view="learned">Learned</button>
+        <button class="tab" data-view="members">Members</button>
+      </nav>
+      <div class="whoami">
+        <span id="whoami-name"></span>
+        <button class="btn-secondary" id="logout-btn" type="button">Log out</button>
+      </div>
+    </header>
+
+    <main id="app">
 
     <!-- RANKINGS VIEW -->
     <section id="view-rank" class="view active">
@@ -92,19 +119,13 @@
     <section id="view-members" class="view">
       <div class="view-head">
         <h1>Members</h1>
-        <p class="sub">Who's in the room, who's got a vote.</p>
+        <p class="sub">Who's got an account.</p>
       </div>
-      <form id="add-member-form" class="form-card form-card-inline">
-        <div class="field">
-          <label for="f-member-name">Add a member</label>
-          <input id="f-member-name" name="name" type="text" placeholder="Full name" required />
-        </div>
-        <button type="submit" class="btn-primary">Add</button>
-      </form>
       <ul id="member-list" class="member-list"></ul>
     </section>
 
-  </main>
+    </main>
+  </div>
 
   <!-- Song detail / voting modal -->
   <div id="modal-backdrop" class="modal-backdrop">

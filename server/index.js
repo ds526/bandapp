@@ -1,12 +1,16 @@
 const path = require('path');
 const express = require('express');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+app.use(cookieParser());
 
-// API routes
+// API routes - /api/auth is unprotected (it's how you get a session in the
+// first place); every other route requires one, enforced inside each router.
+app.use('/api/auth', require('./routes/auth'));
 app.use('/api/members', require('./routes/members'));
 app.use('/api/songs', require('./routes/songs'));
 app.use('/api/votes', require('./routes/votes'));
